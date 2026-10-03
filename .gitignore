@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+
+# Player databases (created on first run)
+*.db
+*.db-*

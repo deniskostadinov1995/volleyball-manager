@@ -1,0 +1,2073 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#080c10">
+<title>Волейбол — Игра</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════
+   TOKENS  (matches setup.html palette)
+═══════════════════════════════════════ */
+:root {
+  --bg:         #080c10;
+  --surface:    #111820;
+  --card:       #18222e;
+  --card-hi:    #1f2e3e;
+
+  --accent:     #c8f135;
+  --accent-dim: rgba(200,241,53,0.13);
+  --glow-sm:    0 0 14px rgba(200,241,53,0.3);
+  --glow-lg:    0 0 32px rgba(200,241,53,0.45);
+
+  --court-a:    #183b28;
+  --court-b:    #1a2d3f;
+  --court-line: rgba(255,255,255,0.10);
+  --net-color:  rgba(255,255,255,0.50);
+
+  --text:       #edf2f7;
+  --text-muted: #6b7c93;
+  --text-dim:   #3a4d5e;
+
+  --danger:     #ff4757;
+  --ok:         #2ecc71;
+
+  --radius:     10px;
+  --radius-sm:  6px;
+
+  --ff-display: 'Oswald', sans-serif;
+  --ff-body:    'DM Sans', sans-serif;
+
+  --ease-spring: cubic-bezier(0.34,1.56,0.64,1);
+  --ease-out:    cubic-bezier(0.22,1,0.36,1);
+}
+
+/* ═══════════════════════════════════════
+   RESET
+═══════════════════════════════════════ */
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html,body {
+  height:100%; width:100%;
+  background:var(--bg); color:var(--text);
+  font-family:var(--ff-body);
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+  touch-action:manipulation;
+  user-select:none;
+  -webkit-user-select:none;
+}
+button {
+  font-family:var(--ff-display);
+  border:none; outline:none; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* ═══════════════════════════════════════
+   APP SHELL  — full-height flex column
+═══════════════════════════════════════ */
+#app {
+  height:100dvh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+/* ═══════════════════════════════════════
+   SCORE BAR
+═══════════════════════════════════════ */
+#scoreBar {
+  flex-shrink:0;
+  height:46px;
+  display:flex;
+  align-items:center;
+  background:var(--surface);
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  padding:0 8px;
+  gap:6px;
+}
+
+.score-side {
+  flex:1;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-width:0;
+}
+.score-side.right { flex-direction:row-reverse; }
+
+.score-team-name {
+  font-family:var(--ff-display);
+  font-size:13px;
+  font-weight:600;
+  letter-spacing:0.04em;
+  text-transform:uppercase;
+  color:var(--text-muted);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.score-num {
+  font-family:var(--ff-display);
+  font-size:28px;
+  font-weight:700;
+  line-height:1;
+  color:var(--text);
+  min-width:28px;
+  text-align:center;
+  transition:transform 0.15s var(--ease-spring), color 0.15s;
+}
+.score-num.bump {
+  animation:scoreBump 0.35s var(--ease-spring);
+  color:var(--accent);
+}
+@keyframes scoreBump {
+  0%  { transform:scale(1); }
+  50% { transform:scale(1.45); }
+  100%{ transform:scale(1); }
+}
+
+.score-center {
+  flex-shrink:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:0 6px;
+}
+.match-label {
+  font-family:var(--ff-display);
+  font-size:10px;
+  font-weight:600;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--text-dim);
+}
+.serve-indicator {
+  font-size:14px;
+  line-height:1;
+  margin-top:1px;
+}
+
+/* Serving indicator on team name */
+.serving-dot {
+  width:7px; height:7px;
+  border-radius:50%;
+  background:var(--accent);
+  box-shadow:var(--glow-sm);
+  flex-shrink:0;
+  animation:servePulse 1.2s ease-in-out infinite;
+}
+@keyframes servePulse {
+  0%,100%{ opacity:1; transform:scale(1); }
+  50%    { opacity:0.5; transform:scale(0.7); }
+}
+
+/* ═══════════════════════════════════════
+   COURT AREA
+═══════════════════════════════════════ */
+#courtArea {
+  flex:1;
+  display:flex;
+  align-items:stretch;
+  min-height:0;
+  position:relative;
+}
+
+.half-court {
+  flex:1;
+  display:flex;
+  align-items:stretch;
+  padding:6px;
+  min-width:0;
+  position:relative;
+  transition:opacity 0.3s;
+}
+#halfA { background: radial-gradient(ellipse at 70% 50%, #1e4530 0%, var(--court-a) 70%); }
+#halfB { background: radial-gradient(ellipse at 30% 50%, #1a3550 0%, var(--court-b) 70%); }
+
+/* Court grid: 3 cols × 2 rows */
+.court-grid {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  grid-template-rows:repeat(2,1fr);
+  gap:5px;
+  width:100%;
+  position:relative;
+}
+
+/* row labels */
+.row-label {
+  position:absolute;
+  font-family:var(--ff-display);
+  font-size:8px;
+  font-weight:600;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--text-dim);
+  pointer-events:none;
+}
+.row-label.front { top:2px; left:2px; }
+.row-label.back  { bottom:2px; left:2px; }
+
+/* ═══════════════════════════════════════
+   PLAYER BUTTON
+═══════════════════════════════════════ */
+.player-btn {
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0,0,0,0.30);
+  border:1.5px solid var(--court-line);
+  border-radius:var(--radius-sm);
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  transition:border-color 0.12s, background 0.12s, transform 0.1s;
+  overflow:visible;
+  gap:2px;
+  padding:4px 3px 6px;
+}
+.player-btn:active {
+  transform:scale(0.93);
+  background:rgba(200,241,53,0.08);
+  border-color:rgba(200,241,53,0.4);
+}
+.player-btn.popup-open {
+  border-color:var(--accent);
+  background:rgba(200,241,53,0.10);
+  box-shadow:var(--glow-sm);
+  z-index:10;
+}
+.player-btn.flash-pos {
+  animation:flashGood 0.4s ease-out;
+}
+.player-btn.flash-neg {
+  animation:flashBad 0.4s ease-out;
+}
+@keyframes flashGood {
+  0%  { box-shadow:none; }
+  40% { box-shadow:0 0 20px rgba(46,204,113,0.7); border-color:rgba(46,204,113,0.8); }
+  100%{ box-shadow:none; }
+}
+@keyframes flashBad {
+  0%  { box-shadow:none; }
+  40% { box-shadow:0 0 20px rgba(255,71,87,0.7); border-color:rgba(255,71,87,0.8); }
+  100%{ box-shadow:none; }
+}
+
+/* Swap mode */
+.player-btn.swap-selected {
+  border-color:var(--accent);
+  background:rgba(200,241,53,0.15);
+  box-shadow:var(--glow-lg);
+  animation:swapPulse 0.8s ease-in-out infinite;
+}
+@keyframes swapPulse {
+  0%,100%{ box-shadow:var(--glow-sm); }
+  50%    { box-shadow:var(--glow-lg); }
+}
+.swap-mode .player-btn { border-color:rgba(200,241,53,0.25); }
+#btnPositions.swap-active {
+  background:var(--accent-dim);
+  border-color:var(--accent);
+  color:var(--accent);
+}
+
+/* Rotation animation applied to the entire grid */
+.court-grid.rotating .player-btn {
+  animation:playerSpin 0.5s var(--ease-out) both;
+}
+@keyframes playerSpin {
+  0%  { opacity:1; transform:scale(1); }
+  25% { opacity:0.3; transform:scale(0.88); }
+  60% { opacity:1; transform:scale(1.06); }
+  100%{ opacity:1; transform:scale(1); }
+}
+
+.player-avatar-ring {
+  width:36px; height:36px;
+  border-radius:50%;
+  background:rgba(0,0,0,0.4);
+  border:1.5px solid rgba(255,255,255,0.12);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+  font-family:var(--ff-display);
+  font-size:15px;
+  font-weight:700;
+  color:rgba(255,255,255,0.75);
+  transition:border-color 0.15s;
+}
+.player-btn.popup-open .player-avatar-ring {
+  border-color:var(--accent);
+  color:var(--accent);
+}
+
+.player-btn-name {
+  font-family:var(--ff-display);
+  font-size:10px;
+  font-weight:600;
+  letter-spacing:0.03em;
+  color:rgba(255,255,255,0.65);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:100%;
+  line-height:1;
+  text-align:center;
+}
+.player-btn.popup-open .player-btn-name { color:var(--accent); }
+
+/* server marker */
+.server-ball {
+  position:absolute;
+  top:3px; right:4px;
+  width:9px; height:9px;
+  border-radius:50%;
+  background:var(--accent);
+  box-shadow:var(--glow-sm);
+  animation:servePulse 1.2s ease-in-out infinite;
+}
+
+/* position badge */
+.pos-tag {
+  position:absolute;
+  bottom:3px; right:4px;
+  font-family:var(--ff-display);
+  font-size:7px;
+  font-weight:700;
+  color:var(--text-dim);
+  letter-spacing:0.04em;
+}
+
+/* ═══════════════════════════════════════
+   NET DIVIDER
+═══════════════════════════════════════ */
+#netDivider {
+  flex-shrink:0;
+  width:14px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:stretch;
+  position:relative;
+  z-index:5;
+}
+.net-post {
+  width:4px;
+  flex:1;
+  background:repeating-linear-gradient(
+    180deg,
+    var(--net-color) 0px,
+    var(--net-color) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  border-radius:2px;
+  box-shadow: 0 0 8px rgba(255,255,255,0.1);
+}
+.net-tape-h {
+  width:12px; height:3px;
+  background:var(--net-color);
+  border-radius:2px;
+  flex-shrink:0;
+}
+
+/* ═══════════════════════════════════════
+   WAITING TEAM STRIP
+═══════════════════════════════════════ */
+#waitingStrip {
+  flex-shrink:0;
+  height:40px;
+  background:var(--surface);
+  border-top:1px solid rgba(255,255,255,0.06);
+  display:flex;
+  align-items:center;
+  padding:0 10px;
+  gap:8px;
+  overflow:hidden;
+}
+.waiting-label {
+  font-family:var(--ff-display);
+  font-size:10px;
+  font-weight:600;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:var(--text-dim);
+  flex-shrink:0;
+}
+.waiting-team-name {
+  font-family:var(--ff-display);
+  font-size:11px;
+  font-weight:600;
+  color:var(--text-muted);
+  flex-shrink:0;
+  margin-right:4px;
+}
+#waitingPlayers {
+  display:flex;
+  gap:5px;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+  flex:1;
+}
+#waitingPlayers::-webkit-scrollbar { display:none; }
+.waiting-chip {
+  flex-shrink:0;
+  background:var(--card);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:20px;
+  padding:3px 10px;
+  font-family:var(--ff-display);
+  font-size:11px;
+  font-weight:600;
+  color:var(--text-muted);
+  white-space:nowrap;
+  animation:chipIn 0.4s var(--ease-spring) both;
+}
+@keyframes chipIn {
+  from{ opacity:0; transform:translateY(8px) scale(0.85); }
+  to  { opacity:1; transform:translateY(0) scale(1); }
+}
+
+/* ═══════════════════════════════════════
+   ACTION BAR
+═══════════════════════════════════════ */
+#actionBar {
+  flex-shrink:0;
+  height:52px;
+  background:var(--surface);
+  border-top:1px solid rgba(255,255,255,0.06);
+  display:flex;
+  align-items:center;
+  padding:5px 8px;
+  gap:6px;
+}
+
+.btn-point {
+  flex:1;
+  height:42px;
+  border-radius:var(--radius-sm);
+  font-size:13px;
+  font-weight:700;
+  letter-spacing:0.04em;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  transition:transform 0.1s, opacity 0.15s;
+}
+.btn-point:active { transform:scale(0.94); }
+#btnPointA {
+  background:rgba(30,70,45,0.9);
+  border:1.5px solid rgba(46,180,90,0.35);
+  color:#5ddd8a;
+}
+#btnPointA:active { background:rgba(46,204,113,0.2); border-color:var(--ok); }
+#btnPointB {
+  background:rgba(25,50,80,0.9);
+  border:1.5px solid rgba(80,140,220,0.35);
+  color:#7ab8f5;
+}
+#btnPointB:active { background:rgba(100,160,255,0.15); border-color:#5a9de0; }
+
+.btn-action {
+  height:42px;
+  border-radius:var(--radius-sm);
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:0.04em;
+  padding:0 11px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  transition:transform 0.1s, opacity 0.15s;
+}
+.btn-action:active { transform:scale(0.93); }
+#btnUndo {
+  background:var(--card);
+  border:1.5px solid rgba(255,255,255,0.08);
+  color:var(--text-muted);
+  flex-shrink:0;
+  min-width:44px;
+}
+#btnEndMatch {
+  background:rgba(255,71,87,0.12);
+  border:1.5px solid rgba(255,71,87,0.3);
+  color:var(--danger);
+  flex-shrink:0;
+}
+#btnEndDay {
+  background:transparent;
+  border:1px solid rgba(255,255,255,0.06);
+  color:var(--text-dim);
+  flex-shrink:0;
+  min-width:36px;
+  font-size:16px;
+}
+
+/* ═══════════════════════════════════════
+   SKILL RATING POPUP
+═══════════════════════════════════════ */
+#popup {
+  position:fixed;
+  z-index:500;
+  background:var(--card);
+  border:1px solid rgba(255,255,255,0.10);
+  border-radius:var(--radius);
+  padding:10px 11px 8px;
+  box-shadow:0 8px 40px rgba(0,0,0,0.7), var(--glow-sm);
+  min-width:190px;
+  max-width:220px;
+  display:none;
+  animation:popupIn 0.2s var(--ease-spring) both;
+  pointer-events:auto;
+}
+#popup.visible { display:block; }
+@keyframes popupIn {
+  from{ opacity:0; transform:scale(0.88) translateY(6px); }
+  to  { opacity:1; transform:scale(1) translateY(0); }
+}
+
+/* Arrow pointer */
+#popup::after {
+  content:'';
+  position:absolute;
+  left:50%; transform:translateX(-50%);
+  border:6px solid transparent;
+}
+#popup.arrow-down::after {
+  top:100%;
+  border-top-color:var(--card);
+}
+#popup.arrow-up::after {
+  bottom:100%;
+  border-bottom-color:var(--card);
+}
+
+.popup-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:8px;
+  padding-bottom:7px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+.popup-player-name {
+  font-family:var(--ff-display);
+  font-size:16px;
+  font-weight:700;
+  color:var(--text);
+  letter-spacing:0.02em;
+}
+.popup-rating {
+  font-family:var(--ff-display);
+  font-size:13px;
+  font-weight:600;
+  color:var(--accent);
+  background:var(--accent-dim);
+  padding:2px 7px;
+  border-radius:4px;
+}
+.popup-close {
+  width:24px; height:24px;
+  border-radius:50%;
+  background:rgba(255,255,255,0.06);
+  color:var(--text-muted);
+  font-size:14px;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+  cursor:pointer;
+  margin-left:6px;
+}
+.popup-close:active { background:rgba(255,71,87,0.2); color:var(--danger); }
+
+.btn-sub {
+  display:block;
+  width:100%;
+  margin-top:8px;
+  padding:8px 0;
+  background:var(--card-hi);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:var(--radius-sm);
+  color:var(--text-muted);
+  font-family:var(--ff-display);
+  font-size:12px;
+  font-weight:600;
+  letter-spacing:0.05em;
+  text-transform:uppercase;
+  transition:background 0.15s, color 0.15s;
+}
+.btn-sub:active { background:var(--accent-dim); color:var(--accent); }
+
+.skill-row {
+  display:flex;
+  align-items:center;
+  gap:5px;
+  margin-bottom:5px;
+}
+.skill-row:last-child { margin-bottom:0; }
+.skill-name {
+  font-family:var(--ff-body);
+  font-size:12px;
+  font-weight:500;
+  color:var(--text-muted);
+  flex:1;
+  white-space:nowrap;
+}
+.skill-btn {
+  width:34px; height:30px;
+  border-radius:var(--radius-sm);
+  font-size:15px;
+  font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+  transition:transform 0.1s, background 0.1s;
+}
+.skill-btn:active { transform:scale(0.88); }
+.skill-btn-plus {
+  background:rgba(46,204,113,0.15);
+  border:1px solid rgba(46,204,113,0.3);
+  color:var(--ok);
+}
+.skill-btn-plus:active { background:rgba(46,204,113,0.35); }
+.skill-btn-minus {
+  background:rgba(255,71,87,0.12);
+  border:1px solid rgba(255,71,87,0.25);
+  color:var(--danger);
+}
+.skill-btn-minus:active { background:rgba(255,71,87,0.3); }
+
+/* small logged counter next to skill name */
+.skill-count {
+  font-family:var(--ff-display);
+  font-size:10px;
+  color:var(--text-dim);
+  min-width:28px;
+  text-align:center;
+}
+
+/* ═══════════════════════════════════════
+   MODALS (bottom sheet)
+═══════════════════════════════════════ */
+.overlay {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.78);
+  backdrop-filter:blur(5px);
+  z-index:300;
+  display:flex; align-items:flex-end;
+  animation:fadeInOv 0.2s;
+}
+.overlay.hidden { display:none; }
+@keyframes fadeInOv { from{opacity:0;} to{opacity:1;} }
+
+.sheet {
+  background:var(--surface);
+  border-radius:16px 16px 0 0;
+  border-top:1px solid rgba(255,255,255,0.08);
+  width:100%;
+  padding:14px 14px 32px;
+  animation:sheetUp 0.3s var(--ease-spring) both;
+}
+@keyframes sheetUp {
+  from{transform:translateY(100%);} to{transform:translateY(0);}
+}
+.sheet-handle {
+  width:36px; height:4px;
+  background:rgba(255,255,255,0.1);
+  border-radius:2px;
+  margin:0 auto 14px;
+}
+.sheet-title {
+  font-family:var(--ff-display);
+  font-size:22px; font-weight:700;
+  color:var(--text);
+  margin-bottom:14px;
+  letter-spacing:0.02em;
+}
+
+/* Team selection buttons */
+.team-pick-row {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-bottom:12px;
+}
+.btn-team-pick {
+  height:56px;
+  border-radius:var(--radius);
+  font-size:14px; font-weight:700;
+  letter-spacing:0.04em;
+  border:1.5px solid rgba(255,255,255,0.08);
+  background:var(--card);
+  color:var(--text);
+  transition:border-color 0.15s, background 0.15s, transform 0.1s;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:2px;
+}
+.btn-team-pick:active { transform:scale(0.95); }
+.btn-team-pick.selected {
+  border-color:var(--accent);
+  background:var(--accent-dim);
+  color:var(--accent);
+}
+.btn-team-pick .team-score {
+  font-size:11px;
+  color:var(--text-muted);
+  font-family:var(--ff-body);
+  font-weight:400;
+}
+.btn-team-pick.selected .team-score { color:var(--accent); opacity:0.7; }
+
+.btn-confirm {
+  width:100%; height:50px;
+  border-radius:var(--radius);
+  background:var(--accent);
+  color:var(--bg);
+  font-size:16px; font-weight:700;
+  letter-spacing:0.05em;
+  margin-top:4px;
+  transition:transform 0.1s, opacity 0.15s;
+}
+.btn-confirm:active { transform:scale(0.97); }
+.btn-confirm:disabled { opacity:0.3; pointer-events:none; }
+.btn-cancel {
+  width:100%; height:40px;
+  border-radius:var(--radius);
+  background:transparent;
+  border:1px solid rgba(255,255,255,0.06);
+  color:var(--text-muted);
+  font-size:13px; font-weight:600;
+  margin-top:6px;
+}
+
+/* ═══════════════════════════════════════
+   END-OF-DAY RATING SUMMARY OVERLAY
+═══════════════════════════════════════ */
+#summaryOverlay {
+  position:fixed; inset:0;
+  background:var(--bg);
+  z-index:600;
+  display:none;
+  flex-direction:column;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding:24px 14px 40px;
+  animation:fadeInOv 0.3s;
+}
+#summaryOverlay.visible { display:flex; }
+
+.summary-header {
+  text-align:center;
+  margin-bottom:20px;
+}
+.summary-emoji { font-size:40px; display:block; margin-bottom:8px; }
+.summary-title {
+  font-family:var(--ff-display);
+  font-size:28px; font-weight:700;
+  letter-spacing:0.03em;
+}
+.summary-subtitle { font-size:13px; color:var(--text-muted); margin-top:4px; }
+
+.summary-list { display:flex; flex-direction:column; gap:8px; }
+
+.summary-card {
+  background:var(--card);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:var(--radius);
+  padding:11px 13px;
+  display:flex; align-items:center; gap:11px;
+  opacity:0; transform:translateX(-20px);
+  animation:slideInCard 0.4s var(--ease-out) both;
+}
+@keyframes slideInCard {
+  to{ opacity:1; transform:translateX(0); }
+}
+
+.summary-avatar {
+  width:36px; height:36px;
+  border-radius:50%;
+  background:var(--surface);
+  border:1.5px solid rgba(255,255,255,0.08);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--ff-display); font-size:15px; font-weight:700;
+  color:var(--accent);
+  flex-shrink:0;
+}
+.summary-name {
+  font-family:var(--ff-display); font-size:16px; font-weight:600;
+  color:var(--text); flex:1;
+}
+.summary-actions {
+  font-size:11px; color:var(--text-dim); margin-top:1px;
+}
+.summary-rating {
+  display:flex; flex-direction:column; align-items:flex-end;
+  flex-shrink:0;
+}
+.rating-old { font-size:11px; color:var(--text-muted); text-decoration:line-through; }
+.rating-new { font-family:var(--ff-display); font-size:18px; font-weight:700; }
+.rating-change {
+  font-size:11px; font-weight:600;
+  padding:1px 6px; border-radius:3px;
+}
+.ch-pos { color:var(--ok); background:rgba(46,204,113,0.1); }
+.ch-neg { color:var(--danger); background:rgba(255,71,87,0.1); }
+.ch-neu { color:var(--text-muted); background:var(--surface); }
+
+.summary-skipped { opacity:0.45; }
+
+.btn-setup {
+  margin-top:20px;
+  width:100%; height:52px;
+  border-radius:var(--radius);
+  background:var(--accent);
+  color:var(--bg);
+  font-size:16px; font-weight:700; letter-spacing:0.05em;
+  transition:transform 0.1s;
+}
+.btn-setup:active { transform:scale(0.97); }
+
+/* ═══════════════════════════════════════
+   LOADING / ERROR STATES
+═══════════════════════════════════════ */
+#loadingState {
+  position:fixed; inset:0;
+  background:var(--bg);
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:14px; z-index:900;
+}
+#loadingState.hidden { display:none; }
+.spinner {
+  width:36px; height:36px;
+  border:3px solid rgba(255,255,255,0.08);
+  border-top-color:var(--accent);
+  border-radius:50%;
+  animation:spin 0.8s linear infinite;
+}
+@keyframes spin { to{transform:rotate(360deg);} }
+.loading-text {
+  font-family:var(--ff-display); font-size:14px;
+  font-weight:600; letter-spacing:0.08em;
+  text-transform:uppercase; color:var(--text-muted);
+}
+
+/* ═══════════════════════════════════════
+   TOAST
+═══════════════════════════════════════ */
+#toast {
+  position:fixed;
+  top:54px; left:50%;
+  transform:translateX(-50%) translateY(-20px);
+  background:var(--card);
+  border:1px solid rgba(255,255,255,0.08);
+  border-left:3px solid var(--accent);
+  color:var(--text);
+  padding:8px 14px;
+  border-radius:var(--radius-sm);
+  font-size:12px;
+  z-index:800;
+  transition:transform 0.3s var(--ease-spring), opacity 0.2s;
+  opacity:0; pointer-events:none; white-space:nowrap;
+  box-shadow:0 6px 24px rgba(0,0,0,0.5);
+}
+#toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+#toast.error { border-left-color:var(--danger); }
+
+/* ═══════════════════════════════════════
+   PORTRAIT WARNING  (soft banner)
+═══════════════════════════════════════ */
+#portraitWarn {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.92);
+  z-index:1000;
+  display:none;
+  flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:12px; padding:30px;
+  text-align:center;
+}
+@media (orientation:portrait) { #portraitWarn { display:flex; } }
+.rotate-icon { font-size:48px; animation:rotateAnim 1.5s ease-in-out infinite; }
+@keyframes rotateAnim {
+  0%,100%{ transform:rotate(0deg); }
+  50%    { transform:rotate(-90deg); }
+}
+.portrait-text { font-family:var(--ff-display); font-size:18px; font-weight:600; color:var(--text); }
+.portrait-sub  { font-size:13px; color:var(--text-muted); }
+</style>
+</head>
+<body>
+
+<!-- ══════ PORTRAIT WARNING ══════════════════ -->
+<div id="portraitWarn">
+  <div class="rotate-icon">📱</div>
+  <div class="portrait-text">Завъртете телефона</div>
+  <div class="portrait-sub">Играта работи само в ландшафтен режим</div>
+</div>
+
+<!-- ══════ LOADING ════════════════════════════ -->
+<div id="loadingState">
+  <div class="spinner"></div>
+  <div class="loading-text">Зарежда игра…</div>
+</div>
+
+<!-- ══════ APP ════════════════════════════════ -->
+<div id="app" style="display:none">
+
+  <!-- Score bar -->
+  <div id="scoreBar">
+    <div class="score-side" id="scoreSideA">
+      <div class="serving-dot" id="servingDotA" style="display:none"></div>
+      <div class="score-num" id="scoreA">0</div>
+      <div class="score-team-name" id="teamNameA">Отбор —</div>
+    </div>
+    <div class="score-center">
+      <div class="match-label" id="matchLabel">МАЧ 1</div>
+      <div class="serve-indicator">🏐</div>
+    </div>
+    <div class="score-side right" id="scoreSideB">
+      <div class="score-team-name" id="teamNameB">Отбор —</div>
+      <div class="score-num" id="scoreB">0</div>
+      <div class="serving-dot" id="servingDotB" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Court area -->
+  <div id="courtArea">
+    <div class="half-court" id="halfA">
+      <div class="court-grid" id="gridA"></div>
+    </div>
+
+    <div id="netDivider">
+      <div class="net-tape-h"></div>
+      <div class="net-post"></div>
+      <div class="net-tape-h"></div>
+    </div>
+
+    <div class="half-court" id="halfB">
+      <div class="court-grid" id="gridB"></div>
+    </div>
+  </div>
+
+  <!-- Waiting strip -->
+  <div id="waitingStrip">
+    <div class="waiting-label">Чака</div>
+    <div class="waiting-team-name" id="waitingTeamName"></div>
+    <div id="waitingPlayers"></div>
+  </div>
+
+  <!-- Action bar -->
+  <div id="actionBar">
+    <button class="btn-point" id="btnPointA" onclick="awardPoint('a')">
+      <span>+1</span><span id="btnALabel" style="font-size:10px;opacity:0.8"></span>
+    </button>
+    <button class="btn-point" id="btnPointB" onclick="awardPoint('b')">
+      <span>+1</span><span id="btnBLabel" style="font-size:10px;opacity:0.8"></span>
+    </button>
+    <button class="btn-action" id="btnUndo" onclick="undoPoint()">↩</button>
+    <button class="btn-action" id="btnEndMatch" onclick="openEndMatch()">КРАЙ МАЧ</button>
+    <button class="btn-action" id="btnPositions" onclick="toggleSwapMode()" style="font-size:18px;padding:0 10px">⚙️</button>
+    <button class="btn-action" id="btnEndDay" onclick="openEndDay()">🌅</button>
+  </div>
+</div>
+
+<!-- ══════ SKILL POPUP ═══════════════════════ -->
+<div id="popup">
+  <div class="popup-header">
+    <div>
+      <div class="popup-player-name" id="popupName"></div>
+    </div>
+    <div class="popup-rating" id="popupRating"></div>
+    <div class="popup-close" onclick="closePopup()">×</div>
+  </div>
+  <div id="popupSkills"></div>
+</div>
+
+<!-- ══════ END MATCH MODAL ═══════════════════ -->
+<div class="overlay hidden" id="endMatchOverlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Кой отбор спечели?</div>
+    <div class="team-pick-row" id="teamPickRow"></div>
+    <button class="btn-confirm" id="confirmEndMatch" onclick="confirmEndMatch()" disabled>
+      Потвърди и следващ мач
+    </button>
+    <button class="btn-cancel" onclick="closeEndMatch()">Отказ</button>
+  </div>
+</div>
+
+<!-- ══════ END DAY MODAL ══════════════════════ -->
+<div class="overlay hidden" id="endDayOverlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Край на деня 🌅</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;line-height:1.5">
+      Приключва сесията и запазва рейтингите на всички играчи.
+      Това не може да се отмени.
+    </p>
+    <button class="btn-confirm" onclick="confirmEndDay()">Запази рейтингите</button>
+    <button class="btn-cancel" onclick="closeEndDay()">Отказ</button>
+  </div>
+</div>
+
+<!-- ══════ RATING SUMMARY ═════════════════════ -->
+<div id="summaryOverlay">
+  <div class="summary-header">
+    <span class="summary-emoji">🏆</span>
+    <div class="summary-title">Рейтинги обновени</div>
+    <div class="summary-subtitle" id="summaryDate"></div>
+  </div>
+  <div class="summary-list" id="summaryList"></div>
+  <button class="btn-setup" onclick="goToSetup()">Нов ден →</button>
+</div>
+
+<!-- ══════ TOAST ══════════════════════════════ -->
+<div id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   CONSTANTS
+═══════════════════════════════════════════════ */
+
+// Court layout: position numbers for each cell in the 3×2 grid.
+// Index = cell position in CSS grid (left-right, top-bottom).
+// LAYOUT_A: Team A on left side.  Row 0=front (near net on right), Row 1=back.
+// LAYOUT_B: Team B on right side, mirrored — P2 faces P2 at net.
+const LAYOUT_A = [4, 3, 2, 5, 6, 1];   // [front-L, front-C, front-R, back-L, back-C, back-R]
+const LAYOUT_B = [4, 3, 2, 5, 6, 1];   // same layout — server (P1) bottom-right on both sides
+
+const POS_LABEL = {
+  1: 'П1🏐', 2: 'П2', 3: 'П3', 4: 'П4', 5: 'П5', 6: 'П6'
+};
+
+/* ═══════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════ */
+const S = {
+  gameState:     null,   // last snapshot from /api/game/court
+  slotA:         null,   // team_slot on left  (playing[0])
+  slotB:         null,   // team_slot on right (playing[1])
+  slotSit:       null,   // sitting slot
+  popupPlayerId: null,
+  popupBtnEl:    null,
+  endMatchWinner:null,   // 'a' or 'b'
+  skillCounts:   {},     // {player_id: {skill: {plus, minus}}}
+  animating:     false,
+  swapMode:      false,
+  swapFirst:     null,
+};
+
+/* ═══════════════════════════════════════════════
+   API
+═══════════════════════════════════════════════ */
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+  return d;
+}
+
+/* ═══════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════ */
+let toastTmr;
+function toast(msg, isErr = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (isErr ? ' error' : '');
+  clearTimeout(toastTmr);
+  toastTmr = setTimeout(() => (el.className = ''), 2600);
+}
+
+/* ═══════════════════════════════════════════════
+   SKILL COUNTS  (session-level, for popup display)
+═══════════════════════════════════════════════ */
+async function refreshSkillCounts() {
+  try {
+    const d = await api('GET', '/api/game/summary');
+    S.skillCounts = {};
+    (d || []).forEach(p => {
+      S.skillCounts[p.player_id] = p.skills || {};
+    });
+  } catch (_) {}
+}
+
+function getCount(playerId, skill) {
+  const sk = (S.skillCounts[playerId] || {})[skill] || {};
+  return { plus: sk.plus || 0, minus: sk.minus || 0 };
+}
+
+/* ═══════════════════════════════════════════════
+   FULL STATE REFRESH
+═══════════════════════════════════════════════ */
+async function refreshState(opts = {}) {
+  try {
+    S.gameState = await api('GET', '/api/game/court');
+  } catch (e) {
+    toast('Грешка при зареждане', true);
+    return;
+  }
+
+  const gs = S.gameState;
+  if (!gs || gs.status === 'no_session') {
+    window.location.href = '/';
+    return;
+  }
+
+  const playing = gs.playing || [];
+  S.slotA   = playing[0];
+  S.slotB   = playing[1];
+  S.slotSit = gs.sitting;
+
+  renderScoreBar(opts.rotatedSlot);
+  renderCourt(opts.rotatedSlot);
+  renderWaiting();
+  renderActionLabels();
+}
+
+/* ═══════════════════════════════════════════════
+   SCORE BAR
+═══════════════════════════════════════════════ */
+function renderScoreBar(rotatedSlot) {
+  const gs = S.gameState;
+  const serving = gs.serving_slot;
+
+  document.getElementById('teamNameA').textContent = `ОТБ ${S.slotA}`;
+  document.getElementById('teamNameB').textContent = `ОТБ ${S.slotB}`;
+  document.getElementById('scoreA').textContent     = gs.score.a;
+  document.getElementById('scoreB').textContent     = gs.score.b;
+  document.getElementById('matchLabel').textContent = `МАЧ ${gs.match_number || 1}`;
+
+  document.getElementById('servingDotA').style.display = (serving === S.slotA) ? '' : 'none';
+  document.getElementById('servingDotB').style.display = (serving === S.slotB) ? '' : 'none';
+}
+
+function bumpScore(side) {
+  const el = document.getElementById('score' + side.toUpperCase());
+  el.classList.remove('bump');
+  void el.offsetWidth;
+  el.classList.add('bump');
+  el.addEventListener('animationend', () => el.classList.remove('bump'), { once: true });
+}
+
+/* ═══════════════════════════════════════════════
+   ACTION BAR LABELS
+═══════════════════════════════════════════════ */
+function renderActionLabels() {
+  document.getElementById('btnALabel').textContent = `ОТБ ${S.slotA}`;
+  document.getElementById('btnBLabel').textContent = `ОТБ ${S.slotB}`;
+}
+
+/* ═══════════════════════════════════════════════
+   COURT RENDER
+═══════════════════════════════════════════════ */
+function renderCourt(rotatedSlot) {
+  const gs = S.gameState;
+  renderHalf('gridA', S.slotA, LAYOUT_A, gs, rotatedSlot);
+  renderHalf('gridB', S.slotB, LAYOUT_B, gs, rotatedSlot);
+}
+
+function renderHalf(gridId, slot, layout, gs, rotatedSlot) {
+  const grid    = document.getElementById(gridId);
+  const teamData= gs.teams[String(slot)];
+  if (!teamData) { grid.innerHTML = ''; return; }
+
+  const byPos = {};
+  teamData.players.forEach(p => { byPos[p.position] = p; });
+
+  // Build 6 cells
+  const html = layout.map((posNum, cellIdx) => {
+    const p = byPos[posNum];
+    if (!p) {
+      return `<div class="player-btn" data-pos="${posNum}" style="opacity:0.3">
+                <div style="font-size:10px;color:var(--text-dim)">?</div>
+              </div>`;
+    }
+    const firstName = (p.first_name || p.name.split(' ')[0]).substring(0, 7);
+    const initial   = firstName.charAt(0).toUpperCase();
+    const isServer  = p.is_server;
+
+    return `<div class="player-btn"
+              id="pbtn-${p.id}"
+              data-player-id="${p.id}"
+              data-slot="${slot}"
+              data-pos="${posNum}"
+              data-grid="${gridId}"
+              onclick="onPlayerTap(event, ${p.id}, '${gridId}', ${slot}, ${posNum})"
+              ontouchstart="">
+              ${isServer ? `<div class="server-ball"></div>` : ''}
+              <div class="player-avatar-ring">${initial}</div>
+              <div class="player-btn-name">${escHtml(firstName)}</div>
+              <div class="pos-tag">${POS_LABEL[posNum] || ''}</div>
+            </div>`;
+  }).join('');
+
+  grid.innerHTML = html;
+
+  // Trigger rotation animation if this slot was the one that rotated
+  if (rotatedSlot === slot) {
+    grid.classList.remove('rotating');
+    void grid.offsetWidth; // reflow
+    grid.classList.add('rotating');
+    grid.addEventListener('animationend', () => grid.classList.remove('rotating'), { once: true });
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   WAITING STRIP
+═══════════════════════════════════════════════ */
+function renderWaiting() {
+  const gs    = S.gameState;
+  const slot  = S.slotSit;
+  if (!slot) { document.getElementById('waitingPlayers').innerHTML = ''; return; }
+
+  const team  = gs.teams[String(slot)];
+  document.getElementById('waitingTeamName').textContent = `ОТБ ${slot}:`;
+
+  if (!team) { document.getElementById('waitingPlayers').innerHTML = ''; return; }
+
+  document.getElementById('waitingPlayers').innerHTML = team.players.map((p, i) =>
+    `<div class="waiting-chip" style="animation-delay:${i * 40}ms">
+      ${escHtml((p.first_name || p.name.split(' ')[0]).substring(0, 8))}
+    </div>`
+  ).join('');
+}
+
+/* ═══════════════════════════════════════════════
+   PLAYER POPUP
+═══════════════════════════════════════════════ */
+function openPopup(event, playerId, gridId, posNum) {
+  event.stopPropagation();
+
+  const gs   = S.gameState;
+  const slot = (gridId === 'gridA') ? S.slotA : S.slotB;
+  const team = gs.teams[String(slot)];
+  if (!team) return;
+
+  const player = team.players.find(p => p.id === playerId);
+  if (!player) return;
+
+  // Close any open popup first
+  closePopup(false);
+
+  S.popupPlayerId = playerId;
+  const btnEl = document.getElementById(`pbtn-${playerId}`);
+  if (btnEl) {
+    S.popupBtnEl = btnEl;
+    btnEl.classList.add('popup-open');
+  }
+
+  // Fill popup content
+  document.getElementById('popupName').textContent   = player.first_name || player.name.split(' ')[0];
+  document.getElementById('popupRating').textContent = parseFloat(player.rating).toFixed(1);
+
+  const skills    = player.skills || [];
+  const skillLbls = player.skill_labels || {};
+
+  document.getElementById('popupSkills').innerHTML = skills.map(skill => {
+    const lbl   = skillLbls[skill] || skill;
+    const cnt   = getCount(playerId, skill);
+    const total = cnt.plus + cnt.minus;
+    const cntStr= total > 0 ? `${cnt.plus}+${cnt.minus}-` : '';
+    return `
+      <div class="skill-row">
+        <div class="skill-name">${escHtml(lbl)}</div>
+        <div class="skill-count">${cntStr}</div>
+        <button class="skill-btn skill-btn-plus"
+          onclick="logSkill(${playerId},'${skill}','plus',this)">+</button>
+        <button class="skill-btn skill-btn-minus"
+          onclick="logSkill(${playerId},'${skill}','minus',this)">−</button>
+      </div>`;
+  }).join('');
+
+  // Determine which slot this player is in
+  let playerSlot = null;
+  const gsPopup = S.gameState;
+  for (const key of Object.keys(gsPopup.teams || {})) {
+    if (gsPopup.teams[key].players.some(p => p.id === playerId)) {
+      playerSlot = parseInt(key);
+      break;
+    }
+  }
+  // Add substitute button
+  document.getElementById('popupSkills').innerHTML += `<button class="btn-sub" onclick="openSubPicker(${playerId}, ${playerSlot})">&#8596; Замени</button>`;
+
+  // Position popup relative to button
+  const popup = document.getElementById('popup');
+  popup.className = 'visible';
+
+  const btnRect = btnEl ? btnEl.getBoundingClientRect() : { top:200, bottom:220, left:100, width:60 };
+  const popW    = 210;
+  const popH    = 44 + skills.length * 39;  // estimate
+  const vw      = window.innerWidth;
+  const vh      = window.innerHeight;
+
+  // Horizontal: center on button, clamp to screen
+  let left = btnRect.left + btnRect.width / 2 - popW / 2;
+  left = Math.max(6, Math.min(vw - popW - 6, left));
+
+  // Vertical: prefer above button; if no room, go below
+  const spaceAbove = btnRect.top - 8;
+  const spaceBelow = vh - btnRect.bottom - 8;
+  let top, arrowDir;
+
+  if (spaceAbove >= popH || spaceAbove >= spaceBelow) {
+    top      = btnRect.top - popH - 6;
+    arrowDir = 'arrow-down';
+  } else {
+    top      = btnRect.bottom + 6;
+    arrowDir = 'arrow-up';
+  }
+  top = Math.max(6, top);
+
+  popup.style.left = left + 'px';
+  popup.style.top  = top  + 'px';
+  popup.classList.add(arrowDir);
+}
+
+function closePopup(restoreBtn = true) {
+  document.getElementById('popup').className = '';
+  document.getElementById('popup').style.left = '';
+  document.getElementById('popup').style.top  = '';
+  if (restoreBtn && S.popupBtnEl) {
+    S.popupBtnEl.classList.remove('popup-open');
+  }
+  S.popupPlayerId = null;
+  S.popupBtnEl    = null;
+}
+
+// Tap outside closes popup
+document.addEventListener('touchstart', e => {
+  const popup = document.getElementById('popup');
+  if (!popup.classList.contains('visible')) return;
+  if (popup.contains(e.target)) return;
+  // Allow tapping another player button (openPopup handles that)
+  if (e.target.closest('.player-btn')) return;
+  closePopup();
+}, { passive: true });
+
+/* ═══════════════════════════════════════════════
+   LOG SKILL ACTION
+═══════════════════════════════════════════════ */
+async function logSkill(playerId, skill, direction, btnEl) {
+  // Optimistic visual feedback immediately
+  btnEl.style.transform = 'scale(0.80)';
+  setTimeout(() => { btnEl.style.transform = ''; }, 200);
+
+  const pbtn = document.getElementById(`pbtn-${playerId}`);
+  if (pbtn) {
+    pbtn.classList.remove('flash-pos', 'flash-neg');
+    void pbtn.offsetWidth;
+    pbtn.classList.add(direction === 'plus' ? 'flash-pos' : 'flash-neg');
+  }
+
+  try {
+    await api('POST', '/api/game/log', { player_id: playerId, skill, direction });
+
+    // Update local skill counts optimistically
+    if (!S.skillCounts[playerId]) S.skillCounts[playerId] = {};
+    if (!S.skillCounts[playerId][skill]) S.skillCounts[playerId][skill] = { plus:0, minus:0 };
+    S.skillCounts[playerId][skill][direction]++;
+
+    // Refresh the count display in popup if still open for this player
+    if (S.popupPlayerId === playerId) {
+      const cnt    = getCount(playerId, skill);
+      const total  = cnt.plus + cnt.minus;
+      const cntStr = total > 0 ? `${cnt.plus}+${cnt.minus}-` : '';
+      // Find the skill-count div for this skill row
+      const rows   = document.querySelectorAll('#popupSkills .skill-row');
+      const gs     = S.gameState;
+      const slot   = S.slotA && gs.teams[String(S.slotA)]
+        ? (gs.teams[String(S.slotA)].players.find(p=>p.id===playerId) ? S.slotA : S.slotB)
+        : S.slotB;
+      const team   = gs.teams[String(slot)];
+      const player = team && team.players.find(p=>p.id===playerId);
+      if (player) {
+        const skillIdx = (player.skills||[]).indexOf(skill);
+        if (skillIdx >= 0 && rows[skillIdx]) {
+          const countEl = rows[skillIdx].querySelector('.skill-count');
+          if (countEl) countEl.textContent = cntStr;
+        }
+      }
+    }
+  } catch(e) {
+    toast('Неуспешно записване', true);
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   AWARD POINT
+═══════════════════════════════════════════════ */
+async function awardPoint(side) {
+  if (S.animating) return;
+
+  const winningSlot = (side === 'a') ? S.slotA : S.slotB;
+  const gs          = S.gameState;
+  const serving     = gs.serving_slot;
+  const isSideOut   = (winningSlot !== serving);
+
+  closePopup();
+  S.animating = true;
+
+  try {
+    const newState = await api('POST', '/api/game/point', { winning_team_slot: winningSlot });
+    bumpScore(side);
+
+    // Full refresh with rotation hint
+    S.gameState = newState;
+    const playing = newState.playing || [];
+    S.slotA   = playing[0];
+    S.slotB   = playing[1];
+    S.slotSit = newState.sitting;
+
+    renderScoreBar(isSideOut ? winningSlot : null);
+    renderCourt(isSideOut ? winningSlot : null);
+    renderWaiting();
+    renderActionLabels();
+
+    if (isSideOut) toast(`Отбор ${winningSlot} сервира`);
+  } catch(e) {
+    toast('Грешка при точка', true);
+  } finally {
+    setTimeout(() => { S.animating = false; }, 550);
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   UNDO POINT
+═══════════════════════════════════════════════ */
+async function undoPoint() {
+  if (S.animating) return;
+  closePopup();
+  try {
+    await api('POST', '/api/game/undo-point');
+    await refreshState();
+    toast('Отменена точка ↩');
+  } catch(e) {
+    toast(e.message || 'Няма точки за отмяна', true);
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   END MATCH
+═══════════════════════════════════════════════ */
+function openEndMatch() {
+  closePopup();
+  const gs  = S.gameState;
+  const row = document.getElementById('teamPickRow');
+  S.endMatchWinner = null;
+
+  row.innerHTML = [
+    { slot: S.slotA, side: 'a', score: gs.score.a },
+    { slot: S.slotB, side: 'b', score: gs.score.b },
+  ].map(t => `
+    <button class="btn-team-pick" id="pickBtn-${t.side}"
+      onclick="pickWinner('${t.side}')">
+      <span>ОТБОР ${t.slot}</span>
+      <span class="team-score">Резултат: ${t.score}</span>
+    </button>`).join('');
+
+  document.getElementById('confirmEndMatch').disabled = true;
+  document.getElementById('endMatchOverlay').classList.remove('hidden');
+}
+
+function pickWinner(side) {
+  S.endMatchWinner = side;
+  ['a','b'].forEach(s => {
+    document.getElementById(`pickBtn-${s}`)
+      .classList.toggle('selected', s === side);
+  });
+  document.getElementById('confirmEndMatch').disabled = false;
+}
+
+async function confirmEndMatch() {
+  if (!S.endMatchWinner) return;
+  const winSlot = S.endMatchWinner === 'a' ? S.slotA : S.slotB;
+
+  closeEndMatch();
+  S.animating = true;
+  closePopup();
+
+  // Fade out court
+  document.getElementById('courtArea').style.opacity = '0';
+  document.getElementById('courtArea').style.transition = 'opacity 0.35s';
+
+  try {
+    await api('POST', '/api/game/end-match', { winner_slot: winSlot });
+    await refreshSkillCounts();
+    await refreshState();
+    toast(`Отбор ${winSlot} продължава! 🏐`);
+  } catch(e) {
+    toast('Грешка', true);
+  } finally {
+    setTimeout(() => {
+      document.getElementById('courtArea').style.opacity = '1';
+      S.animating = false;
+    }, 400);
+  }
+}
+
+function closeEndMatch() {
+  document.getElementById('endMatchOverlay').classList.add('hidden');
+  S.endMatchWinner = null;
+}
+
+/* ═══════════════════════════════════════════════
+   END DAY
+═══════════════════════════════════════════════ */
+function openEndDay()  { document.getElementById('endDayOverlay').classList.remove('hidden'); }
+function closeEndDay() { document.getElementById('endDayOverlay').classList.add('hidden'); }
+
+async function confirmEndDay() {
+  closeEndDay();
+  document.getElementById('loadingState').classList.remove('hidden');
+  document.getElementById('loadingState').querySelector('.loading-text').textContent = 'Запазва рейтинги…';
+
+  try {
+    const d = await api('POST', '/api/game/end-day');
+    document.getElementById('loadingState').classList.add('hidden');
+    showSummary(d);
+  } catch(e) {
+    document.getElementById('loadingState').classList.add('hidden');
+    toast('Грешка при запазване', true);
+  }
+}
+
+function showSummary(data) {
+  document.getElementById('summaryDate').textContent = data.session_date || '';
+
+  const updates = (data.updates || []).sort((a,b) =>
+    Math.abs(b.change||0) - Math.abs(a.change||0)
+  );
+
+  document.getElementById('summaryList').innerHTML = updates.map((u, i) => {
+    const ch      = u.change || 0;
+    const chCls   = ch > 0.01 ? 'ch-pos' : ch < -0.01 ? 'ch-neg' : 'ch-neu';
+    const chSign  = ch > 0.01 ? '+' : '';
+    const initial = (u.name || '?').charAt(0).toUpperCase();
+
+    return `<div class="summary-card ${u.skipped ? 'summary-skipped' : ''}"
+              style="animation-delay:${i * 60}ms">
+      <div class="summary-avatar">${escHtml(initial)}</div>
+      <div style="flex:1;min-width:0">
+        <div class="summary-name">${escHtml(u.name)}</div>
+        <div class="summary-actions">
+          ${u.skipped
+            ? `<span style="color:var(--text-dim)">${u.reason || 'Пропуснат'}</span>`
+            : `${u.total_actions} действия`
+          }
+        </div>
+      </div>
+      <div class="summary-rating">
+        <div class="rating-old">${parseFloat(u.old_rating).toFixed(1)}</div>
+        <div class="rating-new" style="color:${ch > 0.01 ? 'var(--ok)' : ch < -0.01 ? 'var(--danger)' : 'var(--text)'}">
+          ${parseFloat(u.new_rating).toFixed(1)}
+        </div>
+        ${!u.skipped
+          ? `<div class="rating-change ${chCls}">${chSign}${ch.toFixed(2)}</div>`
+          : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('summaryOverlay').classList.add('visible');
+}
+
+function goToSetup() {
+  window.location.href = '/';
+}
+
+/* ═══════════════════════════════════════════════
+   UTILS
+═══════════════════════════════════════════════ */
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ═══════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════ */
+async function init() {
+  document.getElementById('loadingState').classList.remove('hidden');
+  try {
+    await refreshSkillCounts();
+    await refreshState();
+    document.getElementById('loadingState').classList.add('hidden');
+    document.getElementById('app').style.display = 'flex';
+  } catch(e) {
+    document.getElementById('loadingState').querySelector('.loading-text').textContent
+      = 'Грешка. Върнете се на настройките.';
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   TAP-TO-SWAP MODE
+═══════════════════════════════════════════════ */
+function onPlayerTap(event, playerId, gridId, slot, posNum) {
+  if (S.swapMode) {
+    swapTap(playerId, slot, posNum);
+  } else {
+    openPopup(event, playerId, gridId, posNum);
+  }
+}
+
+function toggleSwapMode() {
+  S.swapMode = !S.swapMode;
+  S.swapFirst = null;
+  closePopup();
+  document.getElementById('btnPositions').classList.toggle('swap-active', S.swapMode);
+  document.getElementById('courtArea').classList.toggle('swap-mode', S.swapMode);
+  if (S.swapMode) toast('Натиснете 2 играча за размяна');
+  else renderCourt(null);
+}
+
+function swapTap(playerId, slot, posNum) {
+  if (!S.swapFirst) {
+    S.swapFirst = { playerId, slot, posNum };
+    const btn = document.getElementById('pbtn-' + playerId);
+    if (btn) btn.classList.add('swap-selected');
+    return;
+  }
+  if (S.swapFirst.playerId === playerId) {
+    const btn = document.getElementById('pbtn-' + playerId);
+    if (btn) btn.classList.remove('swap-selected');
+    S.swapFirst = null;
+    return;
+  }
+  if (S.swapFirst.slot !== slot) {
+    toast('Размяна само в един отбор', true);
+    const btn = document.getElementById('pbtn-' + S.swapFirst.playerId);
+    if (btn) btn.classList.remove('swap-selected');
+    S.swapFirst = null;
+    return;
+  }
+  performSwap(slot, S.swapFirst.posNum, posNum);
+}
+
+async function performSwap(slot, pos1, pos2) {
+  const team = S.gameState.teams[String(slot)];
+  if (!team) return;
+  const posMap = {};
+  team.players.forEach(p => { if (p.position) posMap[String(p.position)] = p.id; });
+  const tmp = posMap[String(pos1)];
+  posMap[String(pos1)] = posMap[String(pos2)];
+  posMap[String(pos2)] = tmp;
+  S.swapFirst = null;
+  try {
+    const ns = await api('PUT', '/api/game/positions', { slot, positions: posMap });
+    S.gameState = ns;
+    const pl = ns.playing || [];
+    S.slotA = pl[0]; S.slotB = pl[1]; S.slotSit = ns.sitting;
+    renderScoreBar(null);
+    renderCourt(null);
+    renderWaiting();
+    toast('Разменени ✓');
+  } catch(e) { toast('Грешка', true); }
+}
+
+/* ═══════════════════════════════════════════════
+   SUBSTITUTE
+═══════════════════════════════════════════════ */
+let subTarget = null; // {playerId, slot}
+
+async function openSubPicker(playerId, slot) {
+  closePopup();
+  subTarget = { playerId, slot };
+
+  // Get all players
+  const allPlayers = await api('GET', '/api/players');
+
+  // Get IDs of all players currently in teams
+  const gs = S.gameState;
+  const inPlay = new Set();
+  for (const key of Object.keys(gs.teams || {})) {
+    (gs.teams[key].players || []).forEach(p => inPlay.add(p.id));
+  }
+
+  // Filter available substitutes
+  const available = allPlayers.filter(p => !inPlay.has(p.id));
+
+  const list = document.getElementById('subList');
+  if (!available.length) {
+    list.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-muted);">Няма налични играчи</div>';
+  } else {
+    list.innerHTML = available.map(p => `
+      <div onclick="confirmSub(${p.id})" style="background:var(--card);border:1px solid rgba(255,255,255,0.07);border-radius:var(--radius-sm);padding:10px 8px;text-align:center;cursor:pointer;">
+        <div style="font-family:var(--ff-display);font-size:14px;font-weight:600;color:var(--text);">${(p.name||'').split(' ')[0]}</div>
+        <div style="font-size:11px;color:var(--text-muted);">${parseFloat(p.rating).toFixed(1)}</div>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('subOverlay').style.display = 'flex';
+}
+
+function closeSubPicker() {
+  document.getElementById('subOverlay').style.display = 'none';
+  subTarget = null;
+}
+
+async function confirmSub(inPlayerId) {
+  if (!subTarget) return;
+  try {
+    const ns = await api('POST', '/api/game/substitute', {
+      team_slot: subTarget.slot,
+      out_player_id: subTarget.playerId,
+      in_player_id: inPlayerId,
+    });
+    S.gameState = ns;
+    const pl = ns.playing || [];
+    S.slotA = pl[0]; S.slotB = pl[1]; S.slotSit = ns.sitting;
+    renderScoreBar(null);
+    renderCourt(null);
+    renderWaiting();
+    toast('Замяна извършена ✓');
+  } catch(e) {
+    toast('Грешка при замяна', true);
+  }
+  closeSubPicker();
+}
+
+init();
+
+/* Prevent accidental scroll / zoom */
+document.addEventListener('touchmove', e => {
+  if (e.target.closest('#summaryOverlay, #waitingPlayers, .sheet, #subOverlay')) return;
+  e.preventDefault();
+}, { passive: false });
+</script>
+<!-- ══════ POSITION EDITOR ════════════════════ -->
+<div id="posEditorOverlay" style="
+  position:fixed;inset:0;background:var(--bg);z-index:400;
+  display:none;flex-direction:column;overflow:hidden;
+  animation:fadeInOv 0.25s;">
+
+  <!-- Header -->
+  <div style="
+    flex-shrink:0;height:46px;background:var(--surface);
+    border-bottom:1px solid rgba(255,255,255,0.06);
+    display:flex;align-items:center;padding:0 12px;gap:10px;">
+    <button onclick="closePosEditor()" style="
+      background:none;color:var(--text-muted);font-size:22px;
+      padding:0 4px;line-height:1;">‹</button>
+    <div style="font-family:var(--ff-display);font-size:16px;font-weight:700;
+      letter-spacing:0.04em;flex:1">Позиции</div>
+    <button onclick="autoPlacePosEditor()" style="
+      background:var(--accent-dim);border:1px solid var(--border-hi);
+      color:var(--accent);font-size:12px;font-weight:700;letter-spacing:0.06em;
+      padding:0 12px;height:32px;border-radius:6px;">⚡ АВТО</button>
+    <button onclick="savePosEditor()" id="posSaveBtn" style="
+      background:var(--accent);color:var(--bg);font-size:12px;font-weight:700;
+      letter-spacing:0.06em;padding:0 14px;height:32px;border-radius:6px;">ЗАПАЗИ</button>
+  </div>
+
+  <!-- Team tabs -->
+  <div style="
+    flex-shrink:0;display:flex;background:var(--surface);
+    border-bottom:1px solid rgba(255,255,255,0.06);padding:0 12px;gap:0;">
+    <div id="peTab1" class="pe-tab pe-tab-active" onclick="setPeTeam(0)">Отбор 1</div>
+    <div id="peTab2" class="pe-tab" onclick="setPeTeam(1)">Отбор 2</div>
+    <div id="peTab3" class="pe-tab" onclick="setPeTeam(2)">Отбор 3</div>
+  </div>
+
+  <!-- Court grid area -->
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;
+    padding:12px;min-height:0;overflow:hidden;">
+    <div style="width:100%;max-width:520px;">
+      <!-- Net label -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <div style="flex:1;height:3px;background:repeating-linear-gradient(
+          90deg,var(--net-color) 0,var(--net-color) 5px,transparent 5px,transparent 10px);
+          border-radius:2px;opacity:.5;"></div>
+        <div style="font-family:var(--ff-display);font-size:9px;letter-spacing:.1em;
+          color:var(--text-dim);text-transform:uppercase;">Мрежа</div>
+        <div style="flex:1;height:3px;background:repeating-linear-gradient(
+          90deg,var(--net-color) 0,var(--net-color) 5px,transparent 5px,transparent 10px);
+          border-radius:2px;opacity:.5;"></div>
+      </div>
+      <!-- 3×2 grid -->
+      <div id="peCourt" style="
+        display:grid;grid-template-columns:repeat(3,1fr);
+        grid-template-rows:repeat(2,1fr);gap:8px;
+        background:var(--court-a);border:2px solid rgba(255,255,255,0.10);
+        border-radius:10px;padding:10px;min-height:160px;"></div>
+      <!-- Legend -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:8px;">
+        <div style="font-size:10px;color:var(--text-dim)"><span style="font-family:var(--ff-display);font-weight:700;color:var(--text-dim);background:var(--card);border-radius:3px;padding:1px 4px">П4</span> Предна лява</div>
+        <div style="font-size:10px;color:var(--text-dim)"><span style="font-family:var(--ff-display);font-weight:700;color:var(--text-dim);background:var(--card);border-radius:3px;padding:1px 4px">П3</span> Предна средна</div>
+        <div style="font-size:10px;color:var(--text-dim)"><span style="font-family:var(--ff-display);font-weight:700;color:var(--text-dim);background:var(--card);border-radius:3px;padding:1px 4px">П2</span> Предна дясна</div>
+        <div style="font-size:10px;color:var(--text-dim)"><span style="font-family:var(--ff-display);font-weight:700;color:var(--text-dim);background:var(--card);border-radius:3px;padding:1px 4px">П5</span> Задна лява</div>
+        <div style="font-size:10px;color:var(--text-dim)"><span style="font-family:var(--ff-display);font-weight:700;color:var(--text-dim);background:var(--card);border-radius:3px;padding:1px 4px">П6</span> Задна средна</div>
+        <div style="font-size:10px;color:var(--text-dim)"><span style="font-family:var(--ff-display);font-weight:700;color:var(--text-dim);background:var(--card);border-radius:3px;padding:1px 4px">П1🏐</span> Сервьор</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Player picker for position editor -->
+<div class="overlay hidden" id="pePicker" onclick="closePePicker(event)">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="pePickerTitle">Избери играч</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+      max-height:45dvh;overflow-y:auto;" id="pePickerGrid"></div>
+    <button onclick="peClearCell()" style="
+      width:100%;margin-top:10px;height:40px;border-radius:6px;
+      background:rgba(255,71,87,0.1);color:var(--danger);
+      border:1px solid rgba(255,71,87,0.2);font-size:13px;font-weight:600;"
+      id="peClearBtn">✕ Махни играча</button>
+  </div>
+</div>
+
+<!-- toast already exists, nothing to add -->
+<script>
+/* ═══════════════════════════════════════════
+   POSITION EDITOR STATE + LOGIC
+   (appended to the existing <script> block
+    — runs in same scope because same page)
+═══════════════════════════════════════════ */
+
+// pe = position editor
+const PE = {
+  teamIndex:    0,       // 0,1,2 → slots 1,2,3
+  // draft positions for all 3 teams — {pos: player_id}
+  positions:    [{},{},{}],
+  // players per team slot (id, name, rating)
+  players:      [{},{},{}],   // indexed by slot-1
+  pickingPos:   null,
+};
+
+const PE_LAYOUT = [4, 3, 2, 5, 6, 1];  // same as court grid
+const PE_POS_LABEL = {
+  1:'П1 🏐', 2:'П2', 3:'П3', 4:'П4', 5:'П5', 6:'П6'
+};
+
+function openPositionEditor() {
+  closePopup();
+  const gs = S.gameState;
+  if (!gs) return;
+
+  // Load current positions + players from game state for all 3 slots
+  [1,2,3].forEach((slot, i) => {
+    const team = gs.teams[String(slot)];
+    if (!team) return;
+    PE.players[i] = {};
+    team.players.forEach(p => { PE.players[i][p.id] = p; });
+
+    // Reconstruct base position map from current state
+    // We only care about base positions (pos_map from API doesn't expose
+    // base positions directly, so we re-derive from current position +
+    // rotation_offset — but since we reset offset on save, just use current)
+    PE.positions[i] = {};
+    team.players.forEach(p => {
+      if (p.position) PE.positions[i][p.position] = p.id;
+    });
+  });
+
+  PE.teamIndex = 0;
+  document.getElementById('posEditorOverlay').style.display = 'flex';
+  renderPeTeam();
+}
+
+function closePosEditor() {
+  document.getElementById('posEditorOverlay').style.display = 'none';
+}
+
+function setPeTeam(idx) {
+  PE.teamIndex = idx;
+  [0,1,2].forEach(i => {
+    document.getElementById(`peTab${i+1}`).className =
+      'pe-tab' + (i === idx ? ' pe-tab-active' : '');
+  });
+  renderPeTeam();
+}
+
+function renderPeTeam() {
+  const idx    = PE.teamIndex;
+  const posMap = PE.positions[idx]; // {pos: pid}
+  const pmap   = PE.players[idx];   // {pid: player}
+  const court  = document.getElementById('peCourt');
+
+  court.innerHTML = PE_LAYOUT.map(pos => {
+    const pid = posMap[pos];
+    const p   = pid ? pmap[pid] : null;
+    return `<div onclick="openPePicker(${pos})" style="
+      background:rgba(0,0,0,0.28);
+      border:1.5px solid ${p ? 'rgba(200,241,53,0.35)' : 'rgba(255,255,255,0.1)'};
+      border-radius:8px;min-height:72px;
+      display:flex;flex-direction:column;align-items:center;
+      justify-content:center;gap:3px;cursor:pointer;
+      transition:transform .1s;padding:6px 4px;position:relative;"
+      ontouchstart="this.style.transform='scale(0.94)'"
+      ontouchend="this.style.transform=''">
+      <div style="position:absolute;top:3px;left:5px;font-family:var(--ff-display);
+        font-size:9px;font-weight:700;color:var(--text-dim)">${PE_POS_LABEL[pos]||''}</div>
+      ${p
+        ? `<div style="font-family:var(--ff-display);font-size:15px;font-weight:700;
+            color:var(--accent);text-align:center;line-height:1.1">
+            ${escHtml(p.first_name || (p.name||'').split(' ')[0])}</div>
+           <div style="font-size:10px;color:var(--text-muted)">${parseFloat(p.rating||5).toFixed(1)}</div>`
+        : `<div style="font-size:20px;opacity:.3">+</div>
+           <div style="font-size:9px;color:var(--text-dim)">Натисни</div>`
+      }
+    </div>`;
+  }).join('');
+
+  updatePosSaveBtn();
+}
+
+function updatePosSaveBtn() {
+  const count = Object.keys(PE.positions[PE.teamIndex]).length;
+  document.getElementById('posSaveBtn').disabled = (count < 6);
+  document.getElementById('posSaveBtn').style.opacity = (count < 6) ? '0.4' : '1';
+}
+
+// ── Picker ───────────────────────────────────
+let pePickingPos = null;
+
+function openPePicker(pos) {
+  pePickingPos = pos;
+  const idx    = PE.teamIndex;
+  const posMap = PE.positions[idx];
+  const pmap   = PE.players[idx];
+  const usedIds= new Set(Object.values(posMap).filter(Boolean));
+  const curPid = posMap[pos];
+  const posName= {1:'Сервьор',2:'Предна дясна',3:'Предна средна',
+                  4:'Предна лява',5:'Задна лява',6:'Задна средна'};
+
+  document.getElementById('pePickerTitle').textContent =
+    `Позиция ${pos} — ${posName[pos]||''}`;
+
+  document.getElementById('pePickerGrid').innerHTML =
+    Object.values(pmap).map(p => {
+      const isCur  = p.id === curPid;
+      const isUsed = usedIds.has(p.id) && !isCur;
+      return `<div onclick="peAssign(${p.id})" style="
+        background:var(--card);
+        border:1px solid ${isCur ? 'var(--accent)' : 'rgba(255,255,255,0.07)'};
+        border-radius:6px;padding:10px 6px;text-align:center;
+        cursor:pointer;opacity:${isUsed?'0.3':'1'};
+        pointer-events:${isUsed?'none':'auto'};
+        transition:border-color .15s,background .15s;">
+        <div style="font-family:var(--ff-display);font-size:14px;font-weight:600;color:var(--text)">
+          ${escHtml(p.first_name || (p.name||'').split(' ')[0])}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${parseFloat(p.rating||5).toFixed(1)}</div>
+      </div>`;
+    }).join('');
+
+  document.getElementById('peClearBtn').style.display = curPid ? '' : 'none';
+  document.getElementById('pePicker').classList.remove('hidden');
+}
+
+function closePePicker(e) {
+  if (!e || e.target === document.getElementById('pePicker')) {
+    document.getElementById('pePicker').classList.add('hidden');
+    pePickingPos = null;
+  }
+}
+
+function peAssign(playerId) {
+  if (pePickingPos === null) return;
+  const idx    = PE.teamIndex;
+  const posMap = PE.positions[idx];
+  // Remove player from any other position first
+  Object.keys(posMap).forEach(k => {
+    if (posMap[k] === playerId) delete posMap[parseInt(k)];
+  });
+  posMap[pePickingPos] = playerId;
+  document.getElementById('pePicker').classList.add('hidden');
+  pePickingPos = null;
+  renderPeTeam();
+}
+
+function peClearCell() {
+  if (pePickingPos === null) return;
+  delete PE.positions[PE.teamIndex][pePickingPos];
+  document.getElementById('pePicker').classList.add('hidden');
+  pePickingPos = null;
+  renderPeTeam();
+}
+
+// ── Auto-place ───────────────────────────────
+function autoPlacePosEditor() {
+  const idx   = PE.teamIndex;
+  const pmap  = PE.players[idx];
+  const sorted= Object.values(pmap).sort((a,b)=>(b.rating||5)-(a.rating||5));
+  const order = [4, 2, 3, 5, 1, 6]; // positions by priority
+  PE.positions[idx] = {};
+  order.forEach((pos, i) => {
+    if (sorted[i]) PE.positions[idx][pos] = sorted[i].id;
+  });
+  renderPeTeam();
+  toast('Авто-позиции за Отбор ' + (idx+1));
+}
+
+// ── Save ─────────────────────────────────────
+async function savePosEditor() {
+  const idx  = PE.teamIndex;
+  const slot = idx + 1;
+  const posMap = PE.positions[idx];
+  if (Object.keys(posMap).length < 6) {
+    toast('Поставете всички 6 играча', true); return;
+  }
+  try {
+    const newState = await api('PUT', '/api/game/positions', {
+      slot,
+      positions: Object.fromEntries(
+        Object.entries(posMap).map(([k,v]) => [String(k), v])
+      ),
+    });
+    S.gameState = newState;
+    const playing = newState.playing || [];
+    S.slotA = playing[0]; S.slotB = playing[1]; S.slotSit = newState.sitting;
+    renderScoreBar(null);
+    renderCourt(null);
+    renderWaiting();
+    toast(`Позициите на Отбор ${slot} са обновени ✓`);
+  } catch(e) {
+    toast('Грешка при запазване', true);
+  }
+}
+</script>
+
+<style>
+.pe-tab {
+  flex:1;text-align:center;padding:10px 0 8px;
+  font-family:var(--ff-display);font-size:12px;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text-muted);border-bottom:2px solid transparent;
+  cursor:pointer;transition:color .15s,border-color .15s;
+}
+.pe-tab-active { color:var(--accent); border-bottom-color:var(--accent); }
+</style>
+
+<!-- ══════ SUBSTITUTE PICKER ═════════════════ -->
+<div id="subOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(4px);z-index:500;flex-direction:column;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--surface);border:1px solid rgba(255,255,255,0.1);border-radius:var(--radius);width:100%;max-width:360px;max-height:70vh;display:flex;flex-direction:column;overflow:hidden;">
+    <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);font-family:var(--ff-display);font-size:16px;font-weight:600;">
+      Изберете заместник
+    </div>
+    <div id="subList" style="flex:1;overflow-y:auto;padding:8px;display:grid;grid-template-columns:repeat(2,1fr);gap:6px;">
+    </div>
+    <div style="padding:10px 16px;border-top:1px solid rgba(255,255,255,0.06);">
+      <button onclick="closeSubPicker()" style="width:100%;padding:10px;background:var(--card);border:1px solid rgba(255,255,255,0.1);border-radius:var(--radius-sm);color:var(--text-muted);font-family:var(--ff-display);font-size:13px;font-weight:600;">Отказ</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
